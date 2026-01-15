@@ -8,7 +8,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const quickSettings = Main.panel.statusArea.quickSettings;
 
-const STUDI_CMD = '/home/mateogrgic/.cargo/bin/studi';
+const STUDI_CMD = '/home/*/.cargo/bin/studi';
 
 function execCommand(argv) {
     return new Promise((resolve, reject) => {
