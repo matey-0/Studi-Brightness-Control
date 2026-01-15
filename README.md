@@ -1,4 +1,5 @@
 # Studi-Brightness-Control
+<img width="1246" height="990" alt="Screenshot From 2026-01-15 16-53-49" src="https://github.com/user-attachments/assets/447bfaca-91fb-45ec-b7e0-37e0457e3195" />  
 GNOME plugin to control Apple Studio Display brightness through the quick settings menu.  
 
 ## Installation
