@@ -8,7 +8,36 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const quickSettings = Main.panel.statusArea.quickSettings;
 
-const STUDI_CMD = '/home/*/.cargo/bin/studi';
+const STUDI_CMD = GLib.find_program_in_path('studi') || 
+                  `${GLib.get_home_dir()}/.cargo/bin/studi`;
+
+async function execCommand(argv) {
+    try {
+        let proc = new Gio.Subprocess({
+            argv: argv,
+            flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
+        });
+
+        proc.init(null);
+
+        const [stdout, stderr] = await new Promise((resolve, reject) => {
+            proc.communicate_utf8_async(null, null, (p, res) => {
+                try {
+                    resolve(p.communicate_utf8_finish(res).slice(1));
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        });
+
+        if (!proc.get_successful())
+            throw new Error(stderr || 'Command failed');
+
+        return (stdout || '').trim().replace('brightness', '').trim();
+    } catch (e) {
+        throw e;
+    }
+}
 
 function execCommand(argv) {
     return new Promise((resolve, reject) => {
