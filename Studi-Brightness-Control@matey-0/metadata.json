@@ -1,6 +1,6 @@
 {
   "name": "Studi Brightness Control",
-  "description": "Native GNOME integration for Apple Studio Display via studi CLI",
+  "description": "Native GNOME integration for Apple Studio Display via studi CLI. Note: You need to have the Studi CLI tool installed for this to work.",
   "uuid": "Studi-Brightness-Control@matey-0",
   "shell-version": [ "48", "49" ],
   "url": "https://github.com/matey-0/Studi-Brightness-Control/",
