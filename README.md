@@ -3,7 +3,7 @@
 GNOME plugin to control Apple Studio Display brightness through the quick settings menu.  
 
 ## Installation
-First, make sure you have Studi installed: https://github.com/himbeles/studi, as it's the backend that allows this project to work. This doesn't do any low-level control; it's just a front end for the Studi CLI that tries to look native for GNOME.  
+First, make sure you have Studi and/or asdbctl installed (https://github.com/juliuszint/asdbctl or https://github.com/himbeles/studi), as it's the backend that allows this project to work. This doesn't do any low-level control; it's just a front end for the CLI tool(s) that tries to look native for GNOME. If you have both, Studi will take precedence.  
 
 ### Manual  
 You can then install this plugin by placing the ``Studi-Brightness-Control@matey-0`` folder in the following path: ``~/.local/share/gnome-shell/extensions/Studi-Brightness-Control@matey-0``. You'll then need to toggle the plugin on; just run ``gnome-extensions enable Studi-Brightness-Control@matey-0`` in the terminal (if it doesn't work, you might need to reboot, or restart your GNOME session).
