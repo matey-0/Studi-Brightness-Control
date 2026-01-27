@@ -29,8 +29,6 @@ function getDisplayCommand() {
     return studiCargo;
 }
 
-const DISPLAY_CMD = getDisplayCommand();
-
 function execCommand(argv) {
     return new Promise((resolve, reject) => {
         try {
@@ -62,6 +60,7 @@ function execCommand(argv) {
 const StudiSlider = GObject.registerClass(
 class StudiSlider extends QuickSettings.QuickSlider {
     _init(extension) {
+        const DISPLAY_CMD = getDisplayCommand();
         const extensionDir = extension.dir;
         const iconFile = Gio.File.new_for_path(extensionDir.get_path() + '/apple.svg');
         const customIcon = Gio.icon_new_for_string(iconFile.get_uri());
