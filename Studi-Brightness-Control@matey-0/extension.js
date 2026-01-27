@@ -8,15 +8,35 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const quickSettings = Main.panel.statusArea.quickSettings;
 
-const STUDI_CMD = GLib.find_program_in_path('studi') || 
-                  `${GLib.get_home_dir()}/.cargo/bin/studi`;
+function getDisplayCommand() {
+    let cmd = GLib.find_program_in_path('studi');
+    if (cmd) return cmd;
+
+    cmd = GLib.find_program_in_path('asdbctl');
+    if (cmd) return cmd;
+
+    const home = GLib.get_home_dir();
+    const studiCargo = `${home}/.cargo/bin/studi`;
+    if (GLib.file_test(studiCargo, GLib.FileTest.IS_EXECUTABLE)) {
+        return studiCargo;
+    }
+
+    const asdbCargo = `${home}/.cargo/bin/asdbctl`;
+    if (GLib.file_test(asdbCargo, GLib.FileTest.IS_EXECUTABLE)) {
+        return asdbCargo;
+    }
+
+    return studiCargo;
+}
+
+const DISPLAY_CMD = getDisplayCommand();
 
 function execCommand(argv) {
     return new Promise((resolve, reject) => {
         try {
             let proc = Gio.Subprocess.new(
                 argv,
-                 Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
             );
 
             proc.communicate_utf8_async(null, null, (proc, res) => {
@@ -92,14 +112,14 @@ class StudiSlider extends QuickSettings.QuickSlider {
     async _setBrightness(level) {
         try {
             level = Math.max(0, Math.min(100, level));
-            await execCommand([STUDI_CMD, 'set', level.toString()]);
+            await execCommand([DISPLAY_CMD, 'set', level.toString()]);
         } catch (e) {
         }
     }
 
     async sync() {
         try {
-            const output = await execCommand([STUDI_CMD, 'get']);
+            const output = await execCommand([DISPLAY_CMD, 'get']);
             let level = parseInt(output.trim());
 
             if (!isNaN(level)) {
