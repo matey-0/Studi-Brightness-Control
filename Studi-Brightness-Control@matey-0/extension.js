@@ -8,35 +8,65 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 const quickSettings = Main.panel.statusArea.quickSettings;
 
-async function execCommand(argv) {
-    try {
-        const proc = new Gio.Subprocess({
-            argv,
-            flags: Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE,
-        });
-        proc.init(null);
+function getDisplayCommand() {
+    let cmd = GLib.find_program_in_path('studi');
+    if (cmd) return cmd;
 
-        const [stdout, stderr] = await proc.communicate_utf8(null, null);
-        if (!proc.get_successful())
-            throw new Error(stderr || 'Command failed');
+    cmd = GLib.find_program_in_path('asdbctl');
+    if (cmd) return cmd;
 
-        return (stdout || '').trim().replace('brightness', '').trim();
-    } catch (e) {
-        throw e;
+    const home = GLib.get_home_dir();
+    const studiCargo = `${home}/.cargo/bin/studi`;
+    if (GLib.file_test(studiCargo, GLib.FileTest.IS_EXECUTABLE)) {
+        return studiCargo;
     }
+
+    const asdbCargo = `${home}/.cargo/bin/asdbctl`;
+    if (GLib.file_test(asdbCargo, GLib.FileTest.IS_EXECUTABLE)) {
+        return asdbCargo;
+    }
+
+    return studiCargo;
+}
+
+function execCommand(argv) {
+    return new Promise((resolve, reject) => {
+        try {
+            let proc = Gio.Subprocess.new(
+                argv,
+                Gio.SubprocessFlags.STDOUT_PIPE | Gio.SubprocessFlags.STDERR_PIPE
+            );
+
+            proc.communicate_utf8_async(null, null, (proc, res) => {
+                try {
+                    let [, stdout, stderr] = proc.communicate_utf8_finish(res);
+                    if (proc.get_successful()) {
+                        let output = stdout ? stdout.trim() : '';
+                        output = output.replace('brightness', '').trim();
+                        resolve(output);
+                    } else {
+                        reject(new Error(stderr || 'Command failed'));
+                    }
+                } catch (e) {
+                    reject(e);
+                }
+            });
+        } catch (e) {
+            reject(e);
+        }
+    });
 }
 
 const StudiSlider = GObject.registerClass(
 class StudiSlider extends QuickSettings.QuickSlider {
     _init(extension) {
-        this._extension = extension;
-        this._displayCmd = this._getDisplayCommand();
+        this._displayCmd = getDisplayCommand();
+        const extensionDir = extension.dir;
+        const iconFile = Gio.File.new_for_path(extensionDir.get_path() + '/apple.svg');
+        const customIcon = Gio.icon_new_for_string(iconFile.get_uri());
         
-        const iconFile = Gio.File.new_for_path(`${this._extension.path}/apple.svg`);
-        const gicon = Gio.Icon.new_for_string(iconFile.get_uri());
-
         super._init({
-            gicon,
+            gicon: customIcon,
         });
 
         this._isInternalUpdate = false;
@@ -44,67 +74,52 @@ class StudiSlider extends QuickSettings.QuickSlider {
         this._pendingValue = -1;
 
         this.slider.accessible_name = 'Studio Display Brightness';
-        this.slider.connect('notify::value', () => this._onValueChanged());
+
+        this.slider.connect('notify::value', () => {
+            if (this._isInternalUpdate) return;
+
+            const percentage = Math.round(this.slider.value * 100);
+
+            if (this._updateTimeoutId) {
+                this._pendingValue = percentage;
+                return;
+            }
+
+            this._setBrightness(percentage);
+
+            this._updateTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                this._updateTimeoutId = 0;
+                if (this._pendingValue !== -1) {
+                    this._setBrightness(this._pendingValue);
+                    this._pendingValue = -1;
+                }
+                return GLib.SOURCE_REMOVE;
+            });
+        });
 
         this.sync();
     }
 
-    _getDisplayCommand() {
-        const binaries = ['studi', 'asdbctl'];
-        for (const bin of binaries) {
-            const path = GLib.find_program_in_path(bin);
-            if (path) return path;
-        }
-
-        const home = GLib.get_home_dir();
-        const cargoPaths = [
-            `${home}/.cargo/bin/studi`,
-            `${home}/.cargo/bin/asdbctl`,
-        ];
-
-        for (const path of cargoPaths) {
-            if (GLib.file_test(path, GLib.FileTest.IS_EXECUTABLE))
-                return path;
-        }
-
-        return 'studi';
-    }
-
-    _onValueChanged() {
-        if (this._isInternalUpdate) return;
-
-        const percentage = Math.round(this.slider.value * 100);
-
+    destroy() {
         if (this._updateTimeoutId) {
-            this._pendingValue = percentage;
-            return;
-        }
-
-        this._setBrightness(percentage);
-
-        this._updateTimeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+            GLib.source_remove(this._updateTimeoutId);
             this._updateTimeoutId = 0;
-            if (this._pendingValue !== -1) {
-                this._setBrightness(this._pendingValue);
-                this._pendingValue = -1;
-            }
-            return GLib.SOURCE_REMOVE;
-        });
+        }
+        super.destroy();
     }
 
     async _setBrightness(level) {
         try {
-            level = Math.clamp(level, 0, 100);
+            level = Math.max(0, Math.min(100, level));
             await execCommand([this._displayCmd, 'set', level.toString()]);
         } catch (e) {
-            console.error(e);
         }
     }
 
     async sync() {
         try {
             const output = await execCommand([this._displayCmd, 'get']);
-            const level = parseInt(output);
+            let level = parseInt(output.trim());
 
             if (!isNaN(level)) {
                 this._isInternalUpdate = true;
@@ -117,15 +132,8 @@ class StudiSlider extends QuickSettings.QuickSlider {
         }
         return false;
     }
-
-    destroy() {
-        if (this._updateTimeoutId) {
-            GLib.source_remove(this._updateTimeoutId);
-            this._updateTimeoutId = 0;
-        }
-        super.destroy();
-    }
 });
+
 
 const StudiIndicator = GObject.registerClass(
 class StudiIndicator extends QuickSettings.SystemIndicator {
@@ -136,33 +144,31 @@ class StudiIndicator extends QuickSettings.SystemIndicator {
         this.quickSettingsItems.push(this.slider);
         this.visible = false;
 
-        this._injectToGrid();
-    }
-
-    _injectToGrid() {
         const brightnessIndicator = quickSettings._brightness;
-        if (!brightnessIndicator) {
-            quickSettings.addExternalIndicator(this);
-            return;
-        }
-
         const brightnessSlider = brightnessIndicator.quickSettingsItems[0];
         const items = quickSettings.menu._grid.get_children();
         const brightnessIndex = items.indexOf(brightnessSlider);
         const nextItem = brightnessIndex >= 0 ? items[brightnessIndex + 1] : null;
 
-        if (nextItem) {
-            quickSettings.menu.insertItemBefore(this.slider, nextItem, 2);
+        if (brightnessSlider && nextItem) {
+            quickSettings.menu.insertItemBefore(
+                this.slider,
+                nextItem,
+                2
+            );
         } else {
-            quickSettings.addExternalIndicator(this);
+            quickSettings.addExternalIndicator(this, 2);
         }
     }
 
+
     destroy() {
         this.quickSettingsItems.forEach(item => item.destroy());
+        this.quickSettingsItems = [];
         super.destroy();
     }
 });
+
 
 export default class StudiExtension extends Extension {
     enable() {
@@ -172,7 +178,9 @@ export default class StudiExtension extends Extension {
         this._checkDisplay();
 
         this._menuSignal = quickSettings.menu.connect('open-state-changed', (menu, open) => {
-            if (open) this._checkDisplay();
+            if (open) {
+                this._checkDisplay();
+            }
         });
     }
 
@@ -180,6 +188,7 @@ export default class StudiExtension extends Extension {
         if (!this._slider || !this._indicator) return;
 
         const isConnected = await this._slider.sync();
+
         this._slider.visible = isConnected;
         this._indicator.visible = isConnected;
     }
@@ -194,7 +203,5 @@ export default class StudiExtension extends Extension {
             this._indicator.destroy();
             this._indicator = null;
         }
-        this._slider = null;
     }
 }
-
