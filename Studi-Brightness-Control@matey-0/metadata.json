@@ -2,7 +2,7 @@
   "name": "Studi Brightness Control",
   "description": "Native GNOME integration for controlling Apple Studio Display brightness via studi or asdbctl. Note: You need to have either CLI tool(s) installed for this to work.",
   "uuid": "Studi-Brightness-Control@matey-0",
-  "shell-version": [ "48", "49" ],
+  "shell-version": [ "48", "49", "50" ],
   "url": "https://github.com/matey-0/Studi-Brightness-Control/",
   "version": 6
 }
